@@ -132,6 +132,7 @@ def add_manual_note(note: Note):
     formatted_note = f"Manual Note or AI Summary: {note.text}"
     notes_db.append(formatted_note)
     return {"status": "success", "note_count": len(notes_db)}
+<<<<<<< HEAD
 
 # --- Financial Calculator Endpoints ---
 
@@ -243,4 +244,6 @@ Base your analysis ONLY on the provided data. If certain metrics are 'N/A', ackn
         }
     except Exception as e:
         return {"error": str(e)}
+=======
+>>>>>>> 4d39348620f30337417af8257c41cf0843d24623
 
