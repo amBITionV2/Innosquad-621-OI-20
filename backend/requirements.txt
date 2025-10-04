@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+langchain-community
+langchain-core
+chromadb
+fastembed
+requests
+beautifulsoup4
+pypdf
+pydantic
+yfinance
+pandas
