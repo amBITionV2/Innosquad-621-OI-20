@@ -1,16 +1,21 @@
-import os
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from pydantic import BaseModel
 from typing import List
 from fastapi.middleware.cors import CORSMiddleware
+import shutil
+import os
 
-# This is the new part: we import the function from the AI Architect's file.
-from rag_pipeline import get_jigyasa_response
+# This will now correctly import all necessary functions
+from rag_pipeline import (
+    get_jigyasa_response, 
+    check_for_contradictions,
+    structure_financial_data,
+    get_socratic_guidance,
+    get_contextual_summary 
+)
 
-# --- Initialize the FastAPI App ---
 app = FastAPI(title="Jigyasa Backend")
 
-# --- CORS Middleware (Stays the same) ---
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,60 +24,74 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- In-Memory "Notebook" Database ---
-# This is our simple, hackathon-friendly database.
 notes_db: List[str] = []
 
-# --- API Models (New model for questions) ---
-class Note(BaseModel):
-    text: str
+# --- API Models ---
+class Note(BaseModel): text: str
+class Question(BaseModel): question: str
+class RawText(BaseModel): text: str
+class InquiryRequest(BaseModel): financial_data: str
+class URLRequest(BaseModel): url: str
 
-class Question(BaseModel):
-    question: str
 
-# --- API Endpoints ---
+# --- Endpoints ---
 
 @app.post("/add-note")
 def add_note(note: Note):
-    """Receives text from the bookmarklet and adds it to our notebook."""
-    print(f"Received note: {note.text[:50]}...")
     notes_db.append(note.text)
     return {"status": "success", "note_count": len(notes_db)}
 
-
-
-# --- THIS IS THE NEW ENDPOINT FOR THE CHAT UI ---
-@app.post("/ask")
-def ask_question(question: Question):
-    """Receives a question, uses the RAG pipeline to get an answer, and returns it."""
-    print(f"Received question: {question.question}")
-    if not notes_db:
-        return {"answer": "My notebook is empty! Please add some research notes using the bookmarklet first."}
-    
-    answer = get_jigyasa_response(question=question.question, notes=notes_db)
-    print(f"Sending answer: {answer[:50]}...")
-    return {"answer": answer}
 @app.get("/notes")
 def get_notes():
-    """A simple endpoint to view all the notes currently in the notebook."""
     return {"notes": notes_db}
+
 @app.post("/ask")
 def ask_question(question: Question):
-    """Receives a question, uses the RAG pipeline to get an answer, and returns it."""
-    print(f"Received question: {question.question}")
-
-    # --- THIS IS THE NEW CONVERSATIONAL GUARDRAIL ---
     user_input = question.question.lower().strip()
-    greetings = ["hello", "hi", "hey", "how are you"]
-
+    greetings = ["hello", "hi", "hey"]
     if user_input in greetings:
-        print("Caught a greeting. Replying directly.")
-        return {"answer": "Hello! How can I help you with your research notes today?"}
-    # -----------------------------------------------
-
+        return {"answer": "Hello! How can I help you with your research?"}
     if not notes_db:
-        return {"answer": "My notebook is empty! Please add some research notes using the bookmarklet first."}
+        return {"answer": "My notebook is empty. Please add some notes first."}
+    return {"answer": get_jigyasa_response(question.question, notes_db)}
+
+@app.post("/check-contradictions")
+def run_contradiction_check():
+    """Runs the heavy AI analysis only when the user asks for it."""
+    print("Running contradiction check...")
+    if len(notes_db) < 2:
+        return {"result": "You need at least two notes to check for contradictions."}
     
-    answer = get_jigyasa_response(question=question.question, notes=notes_db)
-    print(f"Sending answer: {answer[:50]}...")
-    return {"answer": answer}
+    # We check the most recent note against all previous notes
+    latest_note = notes_db[-1]
+    previous_notes = notes_db[:-1]
+    
+    contradiction_warning = check_for_contradictions(latest_note, previous_notes)
+    
+    if contradiction_warning:
+        return {"result": contradiction_warning}
+    else:
+        return {"result": "No contradictions found among your recent notes."}
+
+@app.post("/extract-data")
+def extract_data(request: RawText):
+    return {"structured_data": structure_financial_data(request.text)}
+
+@app.post("/guide-research")
+def guide_research(request: InquiryRequest):
+    return {"guidance": get_socratic_guidance(notes_db, request.financial_data)}
+
+@app.post("/summarize-url")
+def summarize_url(request: URLRequest):
+    """Receives a URL, scrapes it, and generates a context-aware summary."""
+    print(f"Received URL to summarize: {request.url}")
+    summary = get_contextual_summary(request.url, notes_db)
+    return {"summary": summary}
+
+# @app.post("/add-manual-note")
+# def add_manual_note(note: Note):
+#     print(f"Received manual note: {note.text[:50]}...")
+#     formatted_note = f"Manual Note or AI Summary: {note.text}"
+#     notes_db.append(formatted_note)
+#     return {"status": "success", "note_count": len(notes_db)}
+
