@@ -88,10 +88,10 @@ def summarize_url(request: URLRequest):
     summary = get_contextual_summary(request.url, notes_db)
     return {"summary": summary}
 
-# @app.post("/add-manual-note")
-# def add_manual_note(note: Note):
-#     print(f"Received manual note: {note.text[:50]}...")
-#     formatted_note = f"Manual Note or AI Summary: {note.text}"
-#     notes_db.append(formatted_note)
-#     return {"status": "success", "note_count": len(notes_db)}
+@app.post("/add-manual-note")
+def add_manual_note(note: Note):
+    print(f"Received manual note: {note.text[:50]}...")
+    formatted_note = f"Manual Note or AI Summary: {note.text}"
+    notes_db.append(formatted_note)
+    return {"status": "success", "note_count": len(notes_db)}
 
